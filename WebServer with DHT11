@@ -1,0 +1,122 @@
+#include <WiFi.h>
+#include <DHT.h>
+
+// 1. 定義 DHT11 設定 (根據作業要求：GPIO Pin 8)
+#define DHTPIN 8
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, dhttype);
+
+// 2. 設定你的 Wi-Fi 帳號密碼
+char ssid[] = "Yokoso";    // 您的網路 SSID (名稱)
+char pass[] = "09877414";    // 您的網路密碼
+int keyIndex = 0;                 // 網路金鑰索引號 (僅 WEP 需要)
+
+int status = WL_IDLE_STATUS;
+WiFiServer server(80); // 建立 Port 80 的 Web 伺服器
+
+void setup() {
+  Serial.begin(115200);      // 初始化序列埠
+  while (!Serial) {
+    ; // 等待序列埠連接（僅原生 USB 需要）
+  }
+
+  // 初始化 DHT11 感測器
+  dht.begin();
+
+  // 嘗試連接 Wi-Fi 網路
+  while (status != WL_CONNECTED) {
+    Serial.print("正在嘗試連接到 SSID: ");
+    Serial.println(ssid);
+    status = WiFi.begin(ssid, pass);
+    delay(10000); // 等待 10 秒進行連接
+  }
+
+  // 啟動 Web 伺服器
+  server.begin();
+  
+  // 連接成功，在序列埠監控器印出 IP 位址
+  printWifiStatus();
+}
+
+void loop() {
+  // 監聽是否有客戶端（瀏覽器）連入
+  WiFiClient client = server.available();
+  
+  if (client) {
+    Serial.println("新客戶端連入");
+    // 一個 http 請求以換行符號 (\n) 結束
+    boolean currentLineIsBlank = true;
+    
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        Serial.write(c);
+        
+        // 如果收到換行符號，且目前行是空白的，代表 HTTP 請求結束
+        // 接下來可以發送回應（Response）
+        if (c == '\n' && currentLineIsBlank) {
+          
+          // 讀取 DHT11 的溫濕度數據
+          float h = dht.readHumidity();
+          float t = dht.readTemperature(); // 攝氏溫度
+
+          // 發送標準的 HTTP 回應標頭
+          client.println("HTTP/1.1 200 OK");
+          client.println("Content-Type: text/html");
+          client.println("Connection: close");  // 回應完畢後關閉連接
+          client.println("Refresh: 5");  // 每 5 秒自動重新整理網頁
+          client.println();
+          
+          // 網頁 HTML 內容開始
+          client.println("<!DOCTYPE HTML>");
+          client.println("<html>");
+          client.println("<head><meta charset=\"UTF-8\"><title>Ameba82-mini DHT11 Server</title></head>");
+          client.println("<body style=\"font-family: Arial; text-align: center; margin-top: 50px;\">");
+          client.println("<h1>Ameba82-mini 邊緣計算微控制器</h1>");
+          client.println("<h2>DHT11 溫濕度即時數據</h2>");
+          client.println("<hr style=\"width:50%\">");
+          
+          // 檢查讀取是否失敗
+          if (isnan(h) || isnan(t)) {
+            client.println("<p style=\"color: red; font-size: 24px;\">無法從 DHT11 感測器讀取資料！請檢查接線。</p>");
+          } else {
+            // 正常顯示數據
+            client.println("<div style=\"font-size: 24px; margin: 20px;\">");
+            client.println("目前溫度: <strong style=\"color: #ff5722;\">" + String(t) + " °C</strong><br><br>");
+            client.println("目前濕度: <strong style=\"color: #00bcd4;\">" + String(h) + " %</strong>");
+            client.println("</div>");
+          }
+          
+          client.println("<p style=\"color: gray;\">(網頁每 5 秒會自動更新一次)</p>");
+          client.println("</body>");
+          client.println("</html>");
+          break;
+        }
+        
+        if (c == '\n') {
+          // 已經開始新的一行
+          currentLineIsBlank = true;
+        } else if (c != '\r') {
+          // 這一行還有其他字元
+          currentLineIsBlank = false;
+        }
+      }
+    }
+    // 給瀏覽器一些時間接收資料
+    delay(1);
+    
+    // 關閉連接
+    client.stop();
+    Serial.println("客戶端已斷開連接");
+  }
+}
+
+// 顯示 Wi-Fi 連線狀態的副程式
+void printWifiStatus() {
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+
+  IPAddress ip = WiFi.localIP();
+  Serial.print("請在瀏覽器輸入此 IP 位址: http://");
+  Serial.println(ip);
+}
