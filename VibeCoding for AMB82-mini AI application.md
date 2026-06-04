@@ -25,3 +25,5 @@ Homework
 1) 實作以上任一個應用(或自創應用)，功能包含拍照+AI Vision + TTS + LCD顯示圖片或文字
 
 2) 上傳成果影片及程式碼
+
+code:[VibeCoding for AMB82-mini AI application](VibeCoding for AMB82-mini AI application)
