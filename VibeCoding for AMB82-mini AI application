@@ -1,0 +1,122 @@
+/*
+ * AMB82-MINI: Gemini Vision + Google TTS + LCD (JPEGDEC)
+ */
+
+#include "GenAI.h"
+#include "VideoStream.h"
+#include <WiFi.h>
+#include "AmebaFatFS.h"
+#include "SPI.h"
+#include "AmebaILI9341.h"
+#include <JPEGDEC_Libraries/JPEGDEC.h> // 請確保已安裝 JPEGDEC Library
+
+// --- 設定區 ---
+String Gemini_key = "AIzaSyACCzvStWUEDYLIEgn3llNUOnArk5I2nDY"; 
+char wifi_ssid[] = "Yokoso";    
+char wifi_pass[] = "09877414";         
+
+#define CHANNEL 0
+#define TFT_RESET 5
+#define TFT_DC    4
+#define TFT_CS    SPI_SS
+#define ILI9341_SPI_FREQUENCY 40000000
+
+// --- 宣告物件 ---
+WiFiSSLClient client;
+GenAI llm;
+GenAI tts;
+AmebaFatFS fs;
+AmebaILI9341 tft = AmebaILI9341(TFT_CS, TFT_DC, TFT_RESET);
+JPEGDEC jpeg;
+
+// 相機設定 (建議使用 VGA 640x480 或更小，LCD 顯示較快)
+VideoSetting config(VIDEO_VGA, CAM_FPS, VIDEO_JPEG, 1);
+
+uint32_t img_addr = 0;
+uint32_t img_len = 0;
+String mp3Filename = "gemini_talk.mp3";
+String prompt_msg = "判斷照片中人物年齡";
+
+// --- JPEG 繪圖回呼函式 ---
+int JPEGDraw(JPEGDRAW *pDraw) {
+    // 將解碼後的像素畫到 TFT 上
+    tft.drawBitmap(pDraw->x, pDraw->y, pDraw->iWidth, pDraw->iHeight, pDraw->pPixels);
+    return 1; 
+}
+
+void initWiFi() {
+    Serial.print("Connecting to WiFi");
+    WiFi.begin(wifi_ssid, wifi_pass);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("\nWiFi Connected!");
+}
+
+void setup() {
+    Serial.begin(115200);
+
+    // 1. 初始化 LCD
+    SPI.setDefaultFrequency(ILI9341_SPI_FREQUENCY);
+    tft.begin();
+    tft.setRotation(1); // 橫向顯示
+    tft.fillScreen(ILI9341_BLACK);
+    Serial.println("LCD Initialized.");
+
+    // 2. 初始化網路
+    initWiFi();
+
+    // 3. 初始化相機
+    Camera.configVideoChannel(CHANNEL, config);
+    Camera.videoInit();
+    Camera.channelBegin(CHANNEL);
+    
+    delay(2000); // 等待相機穩定
+
+    // 4. 拍照
+    Serial.println("Taking picture...");
+    Camera.getImage(CHANNEL, &img_addr, &img_len);
+
+    // 5. 解碼並在 LCD 顯示
+    Serial.println("Decoding JPEG to LCD...");
+    if (jpeg.openRAM((uint8_t *)img_addr, img_len, JPEGDraw)) {
+        // JPEG_SCALE_HALF 可以加快速度並縮小圖片符合螢幕尺寸
+        jpeg.decode(0, 0, JPEG_SCALE_HALF); 
+        jpeg.close();
+    }
+
+    // 6. 呼叫 Gemini Vision
+    Serial.println("Consulting Gemini...");
+    String result = llm.geminivision(Gemini_key, "gemini-flash-latest", prompt_msg, img_addr, img_len, client);
+    Serial.println("Gemini Says: " + result);
+
+    // 7. 生成語音檔 (繁體中文)
+    Serial.println("Generating TTS...");
+    tts.googletts(mp3Filename, result, "zh-TW");
+
+    // 8. 播放音訊
+    Serial.println("Playing MP3...");
+    sdPlayMP3(mp3Filename);
+}
+
+void loop() {
+    // 保持空白，僅執行一次 setup 流程
+}
+
+void sdPlayMP3(String filename) {
+    if (!fs.begin()) {
+        Serial.println("SD Card failed!");
+        return;
+    }
+    String filepath = String(fs.getRootPath()) + filename;
+    File file = fs.open(filepath, MP3);
+    if (file) {
+        file.setMp3DigitalVol(120);
+        file.playMp3();
+        file.close();
+    } else {
+        Serial.println("Failed to open MP3 file");
+    }
+    fs.end();
+}
