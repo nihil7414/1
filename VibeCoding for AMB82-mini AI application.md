@@ -26,4 +26,4 @@ Homework
 
 2) 上傳成果影片及程式碼
 
-code:[VibeCoding for AMB82-mini AI application](VibeCoding for AMB82-mini AI application)
+code:[VibeCoding for AMB82-mini AI application](https://github.com/nihil7414/nihil7414.github.io/blob/main/VibeCoding%20for%20AMB82-mini%20AI%20application)
