@@ -7,4 +7,4 @@ use I2C1 bus (SDA1, SCL1) by setting wire1.begin()
 and modify VL53L0X.cpp in Realtek hardware package library
 (C:\Users\User\AppData\Local\Arduino15\packages\realtek\hardware\AmebaPro2\4.1.1-build20260417\libraries\Wire\src\VL53L0X_IR_libraries/VL53L0X.cpp)
 
-Delivery:[IR ranger + TFT display](IR ranger + TFT display)
+Delivery:[IR ranger + TFT display]([IR ranger + TFT display](https://github.com/nihil7414/nihil7414.github.io/blob/main/IR%20ranger%20%2B%20TFT%20display))
